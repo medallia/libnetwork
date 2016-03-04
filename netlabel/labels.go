@@ -30,6 +30,9 @@ const (
 	//EnableIPv6 constant represents enabling IPV6 at network level
 	EnableIPv6 = Prefix + ".enable_ipv6"
 
+	// Ip4Addresses constant represent IPv4 Addresses of a Container
+	IPv4Addresses = "io.docker.network.endpoint.ip4addresses"
+
 	// DriverMTU constant represents the MTU size for the network driver
 	DriverMTU = DriverPrefix + ".mtu"
 

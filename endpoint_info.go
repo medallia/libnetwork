@@ -7,6 +7,7 @@ import (
 
 	"github.com/docker/libnetwork/driverapi"
 	"github.com/docker/libnetwork/types"
+	"github.com/Sirupsen/logrus"
 )
 
 // EndpointInfo provides an interface to retrieve network resources bound to the endpoint.
@@ -36,6 +37,9 @@ type InterfaceInfo interface {
 
 	// Address returns the IPv4 address assigned to the endpoint.
 	Address() *net.IPNet
+	
+	// Additional IPv4 addresses assigned to the endpoint.
+	ExtraAddresses() []*net.IPNet
 
 	// AddressIPv6 returns the IPv6 address assigned to the endpoint.
 	AddressIPv6() *net.IPNet
@@ -44,6 +48,7 @@ type InterfaceInfo interface {
 type endpointInterface struct {
 	mac       net.HardwareAddr
 	addr      *net.IPNet
+	extraAddr []*net.IPNet
 	addrv6    *net.IPNet
 	srcName   string
 	dstPrefix string
@@ -122,6 +127,9 @@ func (epi *endpointInterface) UnmarshalJSON(b []byte) error {
 func (epi *endpointInterface) CopyTo(dstEpi *endpointInterface) error {
 	dstEpi.mac = types.GetMacCopy(epi.mac)
 	dstEpi.addr = types.GetIPNetCopy(epi.addr)
+	for _, ei := range epi.extraAddr{
+		dstEpi.extraAddr = append(dstEpi.extraAddr, types.GetIPNetCopy(ei))
+	}
 	dstEpi.addrv6 = types.GetIPNetCopy(epi.addrv6)
 	dstEpi.srcName = epi.srcName
 	dstEpi.dstPrefix = epi.dstPrefix
@@ -221,6 +229,8 @@ func (epi *endpointInterface) SetMacAddress(mac net.HardwareAddr) error {
 }
 
 func (epi *endpointInterface) SetIPAddress(address *net.IPNet) error {
+	logrus.Infof("Setting IP Address %s %s", epi.srcName, address)
+
 	if address.IP == nil {
 		return types.BadRequestErrorf("tried to set nil IP address to endpoint interface")
 	}
@@ -228,6 +238,16 @@ func (epi *endpointInterface) SetIPAddress(address *net.IPNet) error {
 		return setAddress(&epi.addrv6, address)
 	}
 	return setAddress(&epi.addr, address)
+}
+
+func (epi *endpointInterface) SetExtraIPAddresses(addresses []*net.IPNet) error {
+	logrus.Infof("Setting Extra IP Addresses %s %s", epi.srcName, addresses)
+	a := make([]*net.IPNet, len(addresses))
+	for j, ip := range addresses {
+		a[j] = types.GetIPNetCopy(ip)
+	}
+	epi.extraAddr = a	
+	return nil
 }
 
 func setAddress(ifaceAddr **net.IPNet, address *net.IPNet) error {
@@ -244,6 +264,15 @@ func (epi *endpointInterface) MacAddress() net.HardwareAddr {
 
 func (epi *endpointInterface) Address() *net.IPNet {
 	return types.GetIPNetCopy(epi.addr)
+}
+
+func (i *endpointInterface) ExtraAddresses() []*net.IPNet {
+	logrus.Infof("ExtraAddresses %s", i.extraAddr)
+	to := make([]*net.IPNet, len(i.extraAddr))
+	for j, ip := range i.extraAddr {
+		to[j] = types.GetIPNetCopy(ip)
+	}
+	return to 
 }
 
 func (epi *endpointInterface) AddressIPv6() *net.IPNet {

@@ -58,11 +58,17 @@ type InterfaceInfo interface {
 	// The API is to be used to assign both the IPv4 and IPv6 address types.
 	SetIPAddress(ip *net.IPNet) error
 
+	// Assign extra IP addresses
+	SetExtraIPAddresses(ips []*net.IPNet) error
+	
 	// MacAddress returns the MAC address.
 	MacAddress() net.HardwareAddr
 
 	// Address returns the IPv4 address.
 	Address() *net.IPNet
+	
+	// Address returns the extra IPv4 addresses.
+	ExtraAddresses() []*net.IPNet
 
 	// AddressIPv6 returns the IPv6 address.
 	AddressIPv6() *net.IPNet

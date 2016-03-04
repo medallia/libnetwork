@@ -79,6 +79,8 @@ type IfaceOptionSetter interface {
 	// Address returns an option setter to set IPv4 address.
 	Address(*net.IPNet) IfaceOption
 
+	ExtraAddresses([]*net.IPNet) IfaceOption
+	
 	// Address returns an option setter to set IPv6 address.
 	AddressIPv6(*net.IPNet) IfaceOption
 

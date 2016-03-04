@@ -462,8 +462,10 @@ func (sb *sandbox) populateNetworkResources(ep *endpoint) error {
 
 	if i != nil && i.srcName != "" {
 		var ifaceOptions []osl.IfaceOption
-
-		ifaceOptions = append(ifaceOptions, sb.osSbox.InterfaceOptions().Address(i.addr), sb.osSbox.InterfaceOptions().Routes(i.routes))
+		
+		addr := sb.osSbox.InterfaceOptions().Address(i.addr)
+		extraAddr := sb.osSbox.InterfaceOptions().ExtraAddresses(i.extraAddr)
+		ifaceOptions = append(ifaceOptions, addr, extraAddr, sb.osSbox.InterfaceOptions().Routes(i.routes))
 		if i.addrv6 != nil && i.addrv6.IP.To16() != nil {
 			ifaceOptions = append(ifaceOptions, sb.osSbox.InterfaceOptions().AddressIPv6(i.addrv6))
 		}

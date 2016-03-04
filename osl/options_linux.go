@@ -48,6 +48,12 @@ func (n *networkNamespace) Address(addr *net.IPNet) IfaceOption {
 	}
 }
 
+func (n *networkNamespace) ExtraAddresses(eaddr []*net.IPNet) IfaceOption {
+	return func(i *nwIface) {
+		i.extraAddress = eaddr
+	}
+}
+
 func (n *networkNamespace) AddressIPv6(addr *net.IPNet) IfaceOption {
 	return func(i *nwIface) {
 		i.addressIPv6 = addr
