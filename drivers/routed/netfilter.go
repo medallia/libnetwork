@@ -62,8 +62,8 @@ func ParseIpOrNet(ipStr string) *net.IPNet {
 }
 
 func NetFilterConfigParse(ingressAllowedString string) (*netFilterConfig, error) {
-	config := new(netFilterConfig)
 	if ingressAllowedString != "" {
+		config := new(netFilterConfig)
 		for _, filterElement := range strings.Split(ingressAllowedString, ",") {
 			filterElement = strings.TrimSpace(filterElement)
 			ipNet := ParseIpOrNet(filterElement)
@@ -77,8 +77,10 @@ func NetFilterConfigParse(ingressAllowedString string) (*netFilterConfig, error)
 				config.allowedNets = append(config.allowedNets, ipNet)
 			}
 		}
+		return config, nil
+	} else {
+		return nil, nil
 	}
-	return config, nil
 }
 
 func NewNetFilter(ifaceName string, epOptions map[string]interface{}) *netFilter {
@@ -86,7 +88,7 @@ func NewNetFilter(ifaceName string, epOptions map[string]interface{}) *netFilter
 
 	ingressFiltering := epOptions[netlabel.IngressAllowed].(*netFilterConfig)
 	if ingressFiltering == nil {
-		logrus.Info("No network ingress filtering specified")
+		logrus.Info("NetFilter: No network ingress filtering specified")
 	}
 
 	return &netFilter{ifaceName, ingressFiltering}
@@ -172,7 +174,7 @@ func (ipRules *iptablesRules) apply() error {
 func applyIpTablesRule(args ...string) error {
 	logrus.Debugf("NetFilter. IpTables call %s", args)
 	if output, err := iptables.Raw(args...); err != nil {
-		return fmt.Errorf("IP tables apply rule failed %s %s %v", args, output, err)
+		return fmt.Errorf("NetFilter. IP tables apply rule failed %s %s %v", args, output, err)
 	}
 	return nil
 }
