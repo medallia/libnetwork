@@ -6,7 +6,7 @@ import (
 	"net"
 	"strings"
 	"sync"
-	
+
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/libnetwork/datastore"
 	"github.com/docker/libnetwork/driverapi"
@@ -19,7 +19,7 @@ import (
 const (
 	networkType = "routed"
 	ifaceID     = 1
-	defaultMtu	= 9000
+	defaultMtu  = 9000
 	VethPrefix  = "vethr" 
 )
 
@@ -36,6 +36,7 @@ type routedEndpoint struct {
 	macAddress      net.HardwareAddr
 	hostInterface   string
 	ipv4Addresses   []netlink.Addr
+	netFilter	*netFilter
 }
 
 // configuration info for the "routed" driver.
@@ -219,6 +220,12 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 	endpoint.macAddress = ifInfo.MacAddress()
 	endpoint.ipv4Addresses = addresses 
 	endpoint.hostInterface = hostIfaceName
+
+	endpoint.netFilter = NewNetFilter(hostIfaceName, epOptions)
+	if err := endpoint.netFilter.applyFiltering(); err != nil {
+		return fmt.Errorf("could not add net filtering %v", err)
+	}
+
 	return nil
 }
 
@@ -233,6 +240,7 @@ func (d *driver) DeleteEndpoint(nid, eid string) error {
 	network := d.network
 	endpoint := network.endpoints[eid]
 	delete(network.endpoints, eid)
+
 	// Try removal of link. Discard error: link pair might have
 	// already been deleted by sandbox delete.
 	link, err := netlink.LinkByName(endpoint.hostInterface)
@@ -242,6 +250,13 @@ func (d *driver) DeleteEndpoint(nid, eid string) error {
 	} else {
 		logrus.Debugf("Can't find host interface: $s, %v ", endpoint.hostInterface, err)
 	}
+
+	if endpoint.netFilter != nil {
+		if err := endpoint.netFilter.removeFiltering(); err != nil {
+			logrus.Warnf("Couldn't remove net filter rules for iface %s,%v", endpoint.hostInterface, err)
+		}
+	}
+
 	return nil
 }
 

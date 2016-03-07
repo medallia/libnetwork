@@ -33,6 +33,9 @@ const (
 	// Ip4Addresses constant represent IPv4 Addresses of a Container
 	IPv4Addresses = "io.docker.network.endpoint.ip4addresses"
 
+	// Comma separated list of subnets which will be allowed to talk to the container.
+	IngressAllowed = "io.docker.network.endpoint.ingressAllowed"
+
 	// DriverMTU constant represents the MTU size for the network driver
 	DriverMTU = DriverPrefix + ".mtu"
 
