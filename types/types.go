@@ -401,6 +401,8 @@ type StaticRoute struct {
 
 	// NextHop will be resolved by the kernel (i.e. as a loose hop).
 	NextHop net.IP
+	
+	Src net.IP
 }
 
 // GetCopy returns a copy of this StaticRoute structure

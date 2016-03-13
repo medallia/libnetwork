@@ -226,7 +226,7 @@ func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo,
 			return err
 		}
 		for _, route := range routes {
-			if jinfo.AddStaticRoute(route.Destination, route.RouteType, route.NextHop) != nil {
+			if jinfo.AddStaticRoute(route.Destination, route.RouteType, route.NextHop, net.IPv4(0, 0, 0, 0)) != nil {
 				return errorWithRollback(fmt.Sprintf("failed to set static route: %v", route), d.Leave(nid, eid))
 			}
 		}

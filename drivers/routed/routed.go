@@ -200,12 +200,17 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 		return fmt.Errorf("could not set link up for host interface %s: %v", hostIfaceName, err)
 	}
 
-	addresses := make([]netlink.Addr, len(ipv4Addresses))
-	ips := make([]*net.IPNet, len(ipv4Addresses))
+	addresses := make([]netlink.Addr, len(ipv4Addresses) + 1)
+	ips := make([]*net.IPNet, len(addresses))
 	for i, _ := range ipv4Addresses {
 		addresses[i] = netlink.Addr{IPNet: &ipv4Addresses[i]}
 		ips[i] = &ipv4Addresses[i]
 	}
+	
+	localLinkIp, _ := netlink.ParseIPNet("169.254.0.2/30")
+	addresses[len(ipv4Addresses)] = netlink.Addr{IPNet: localLinkIp}
+	ips[len(ipv4Addresses)] = localLinkIp
+	
 	// Set the primary IP Address
 	if err := ifInfo.SetIPAddress(ips[0]); err != nil {
 		return fmt.Errorf("could not set IP %s %v", ips[0])
@@ -272,15 +277,22 @@ func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo,
 	
 	// add route in the host to the container IP addresses.
 	for _, ipv4 := range endpoint.ipv4Addresses {
-		err := routeAdd(ipv4.IPNet, "", "", endpoint.hostInterface)
-		if err != nil {
-			logrus.Errorf("Can't Add Route to %s -> %s : %v", ipv4, endpoint.hostInterface, err)
-			return err
+		if strings.HasPrefix(ipv4.IPNet.IP.String(), "169.254") {
+			logrus.Infof("Not Adding Route for ip %s", ipv4.IPNet)	
+		} else {
+			err := routeAdd(ipv4.IPNet, "", "", endpoint.hostInterface)
+			if err != nil {
+				logrus.Errorf("Can't Add Route to %s -> %s : %v", ipv4, endpoint.hostInterface, err)
+				return err
+			}
 		}
 	}
 	// add static default route through the veth in the sandbox
+	// ip route add default via $host_unique_local-link_ip.1 src $the_container_ip
 	_, dip, _ := net.ParseCIDR("0.0.0.0/0")
-	if err := jinfo.AddStaticRoute(dip, types.CONNECTED, nil); err != nil {
+	hop, _ := netlink.ParseIPNet("169.254.0.1/30")
+	logrus.Debug("Adding route to %s", endpoint.ipv4Addresses[0].IPNet.IP)
+	if err := jinfo.AddStaticRoute(dip, types.NEXTHOP, hop.IP, endpoint.ipv4Addresses[0].IPNet.IP); err != nil {
 		return fmt.Errorf("could not Add static route %v", err)
 	}
 

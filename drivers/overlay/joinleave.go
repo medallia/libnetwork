@@ -88,7 +88,7 @@ func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo,
 		if sub == s {
 			continue
 		}
-		if err := jinfo.AddStaticRoute(sub.subnetIP, types.NEXTHOP, s.gwIP.IP); err != nil {
+		if err := jinfo.AddStaticRoute(sub.subnetIP, types.NEXTHOP, s.gwIP.IP, net.IPv4(0, 0, 0, 0)); err != nil {
 			log.Errorf("Adding subnet %s static route in network %q failed\n", s.subnetIP, n.id)
 		}
 	}
