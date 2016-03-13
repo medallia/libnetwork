@@ -101,7 +101,7 @@ func programGateway(path string, gw net.IP, isAdd bool) error {
 }
 
 // Program a route in to the namespace routing table.
-func programRoute(path string, dest *net.IPNet, nh net.IP) error {
+func programRoute(path string, dest *net.IPNet, nh net.IP, src net.IP) error {
 	return nsInvoke(path, func(nsFD int) error { return nil }, func(callerFD int) error {
 		gwRoutes, err := netlink.RouteGet(nh)
 		if err != nil {
@@ -113,6 +113,7 @@ func programRoute(path string, dest *net.IPNet, nh net.IP) error {
 			LinkIndex: gwRoutes[0].LinkIndex,
 			Gw:        nh,
 			Dst:       dest,
+			Src:       src,
 		})
 	})
 }
@@ -167,7 +168,7 @@ func (n *networkNamespace) UnsetGatewayIPv6() error {
 }
 
 func (n *networkNamespace) AddStaticRoute(r *types.StaticRoute) error {
-	err := programRoute(n.nsPath(), r.Destination, r.NextHop)
+	err := programRoute(n.nsPath(), r.Destination, r.NextHop, r.Src)
 	if err == nil {
 		n.Lock()
 		n.staticRoutes = append(n.staticRoutes, r)
