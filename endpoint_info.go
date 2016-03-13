@@ -296,11 +296,11 @@ func (ep *endpoint) InterfaceName() driverapi.InterfaceNameInfo {
 	return nil
 }
 
-func (ep *endpoint) AddStaticRoute(destination *net.IPNet, routeType int, nextHop net.IP) error {
+func (ep *endpoint) AddStaticRoute(destination *net.IPNet, routeType int, nextHop net.IP, src net.IP) error {
 	ep.Lock()
 	defer ep.Unlock()
 
-	r := types.StaticRoute{Destination: destination, RouteType: routeType, NextHop: nextHop}
+	r := types.StaticRoute{Destination: destination, RouteType: routeType, NextHop: nextHop, Src: src}
 
 	if routeType == types.NEXTHOP {
 		// If the route specifies a next-hop, then it's loosely routed (i.e. not bound to a particular interface).
