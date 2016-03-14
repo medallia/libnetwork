@@ -17,10 +17,12 @@ import (
 )
 
 const (
-	networkType = "routed"
-	ifaceID     = 1
-	defaultMtu  = 9000
-	VethPrefix  = "vethr" 
+	networkType                = "routed"
+	ifaceID                    = 1
+	defaultMtu                 = 9000
+	sandboxLinkLocalAddress, _ = netlink.ParseIPNet("169.254.0.2/30") //"169.254.0.2/30"
+	defaultGw, _               = netlink.ParseIPNet("169.254.0.1/30")
+	VethPrefix                 = "vethr"
 )
 
 type routedNetwork struct {
@@ -206,8 +208,8 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 		addresses[i] = netlink.Addr{IPNet: &ipv4Addresses[i]}
 		ips[i] = &ipv4Addresses[i]
 	}
-	
-	localLinkIp, _ := netlink.ParseIPNet("169.254.0.2/30")
+
+	localLinkIp, _ := netlink.ParseIPNet(sandboxLinkLocalAddress)
 	addresses[len(ipv4Addresses)] = netlink.Addr{IPNet: localLinkIp}
 	ips[len(ipv4Addresses)] = localLinkIp
 	
@@ -277,8 +279,8 @@ func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo,
 	
 	// add route in the host to the container IP addresses.
 	for _, ipv4 := range endpoint.ipv4Addresses {
-		if strings.HasPrefix(ipv4.IPNet.IP.String(), "169.254") {
-			logrus.Infof("Not Adding Route for ip %s", ipv4.IPNet)	
+		if ipv4.IPNet.IP == sandboxLinkLocalAddress {
+			logrus.Infof("Not Adding Route for link-local Address %s", ipv4.IPNet)
 		} else {
 			err := routeAdd(ipv4.IPNet, "", "", endpoint.hostInterface)
 			if err != nil {
@@ -287,10 +289,12 @@ func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo,
 			}
 		}
 	}
-	// add static default route through the veth in the sandbox
-	// ip route add default via $host_unique_local-link_ip.1 src $the_container_ip
+	// Add static default route via a local-link address using the primary address as the src.
+	// The host local-link address doesn't need to be bound. The host will respond the arp request with it's own
+	// address anyway by arp-proxy.
+	//   ip route add default via 169.254.0.1 src $the_container_ip
 	_, dip, _ := net.ParseCIDR("0.0.0.0/0")
-	hop, _ := netlink.ParseIPNet("169.254.0.1/30")
+	hop, _ := defaultGw
 	logrus.Debug("Adding route to %s", endpoint.ipv4Addresses[0].IPNet.IP)
 	if err := jinfo.AddStaticRoute(dip, types.NEXTHOP, hop.IP, endpoint.ipv4Addresses[0].IPNet.IP); err != nil {
 		return fmt.Errorf("could not Add static route %v", err)

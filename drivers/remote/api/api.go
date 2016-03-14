@@ -129,6 +129,7 @@ type StaticRoute struct {
 	Destination string
 	RouteType   int
 	NextHop     string
+	Src         string
 }
 
 // JoinResponse is the response to a JoinRequest.
