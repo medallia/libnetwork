@@ -17,12 +17,12 @@ import (
 )
 
 const (
-	networkType                = "routed"
-	ifaceID                    = 1
-	defaultMtu                 = 9000
-	sandboxLinkLocalAddress, _ = netlink.ParseIPNet("169.254.0.2/30") //"169.254.0.2/30"
-	defaultGw, _               = netlink.ParseIPNet("169.254.0.1/30")
-	VethPrefix                 = "vethr"
+	networkType             = "routed"
+	ifaceID                 = 1
+	defaultMtu              = 9000
+	sandboxLinkLocalAddress = "169.254.0.2/30" //"169.254.0.2/30"
+	defaultGw               = "169.254.0.1/30"
+	VethPrefix              = "vethr"
 )
 
 type routedNetwork struct {
@@ -279,7 +279,7 @@ func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo,
 	
 	// add route in the host to the container IP addresses.
 	for _, ipv4 := range endpoint.ipv4Addresses {
-		if ipv4.IPNet.IP == sandboxLinkLocalAddress {
+		if ipv4.IPNet.IP.String() == sandboxLinkLocalAddress {
 			logrus.Infof("Not Adding Route for link-local Address %s", ipv4.IPNet)
 		} else {
 			err := routeAdd(ipv4.IPNet, "", "", endpoint.hostInterface)
@@ -294,7 +294,7 @@ func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo,
 	// address anyway by arp-proxy.
 	//   ip route add default via 169.254.0.1 src $the_container_ip
 	_, dip, _ := net.ParseCIDR("0.0.0.0/0")
-	hop, _ := defaultGw
+	hop, _ := netlink.ParseIPNet(defaultGw)
 	logrus.Debug("Adding route to %s", endpoint.ipv4Addresses[0].IPNet.IP)
 	if err := jinfo.AddStaticRoute(dip, types.NEXTHOP, hop.IP, endpoint.ipv4Addresses[0].IPNet.IP); err != nil {
 		return fmt.Errorf("could not Add static route %v", err)
