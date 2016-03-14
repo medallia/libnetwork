@@ -279,7 +279,7 @@ func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo,
 	
 	// add route in the host to the container IP addresses.
 	for _, ipv4 := range endpoint.ipv4Addresses {
-		if ipv4.IPNet.IP.String() == sandboxLinkLocalAddress {
+		if ipv4.IPNet.String() == sandboxLinkLocalAddress {
 			logrus.Infof("Not Adding Route for link-local Address %s", ipv4.IPNet)
 		} else {
 			err := routeAdd(ipv4.IPNet, "", "", endpoint.hostInterface)
