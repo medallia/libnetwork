@@ -895,7 +895,8 @@ func (ep *endpoint) assignAddress(ipam ipamapi.Ipam, assignIPv4, assignIPv6 bool
 	var err error
 
 	n := ep.getNetwork()
-	if n.Type() == "host" || n.Type() == "null" {
+	if n.Type() == "host" || n.Type() == "null" || n.Type() == "routed" {
+		log.Debugf("Not assigning addresses for endpoint %s", ep.Name())
 		return nil
 	}
 
@@ -975,7 +976,7 @@ func (ep *endpoint) assignAddressVersion(ipVer int, ipam ipamapi.Ipam) error {
 
 func (ep *endpoint) releaseAddress() {
 	n := ep.getNetwork()
-	if n.Type() == "host" || n.Type() == "null" {
+	if n.Type() == "host" || n.Type() == "null" || n.Type() == "routed" {
 		return
 	}
 
