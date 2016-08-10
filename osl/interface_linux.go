@@ -23,6 +23,7 @@ type nwIface struct {
 	dstMaster   string
 	mac         net.HardwareAddr
 	address     *net.IPNet
+	extraAddress []*net.IPNet
 	addressIPv6 *net.IPNet
 	routes      []*net.IPNet
 	bridge      bool
@@ -77,6 +78,18 @@ func (i *nwIface) Address() *net.IPNet {
 	defer i.Unlock()
 
 	return types.GetIPNetCopy(i.address)
+}
+
+func (i *nwIface) ExtraAddresses() []*net.IPNet {
+	i.Lock()
+	defer i.Unlock()
+
+	ea := make([]*net.IPNet, len(i.extraAddress))
+	for index, ip := range i.extraAddress {
+		r := types.GetIPNetCopy(ip)
+		ea[index] = r
+	}
+	return ea
 }
 
 func (i *nwIface) AddressIPv6() *net.IPNet {
@@ -314,6 +327,7 @@ func configureInterface(iface netlink.Link, i *nwIface) error {
 		{setInterfaceName, fmt.Sprintf("error renaming interface %q to %q", ifaceName, i.DstName())},
 		{setInterfaceMAC, fmt.Sprintf("error setting interface %q MAC to %q", ifaceName, i.MacAddress())},
 		{setInterfaceIP, fmt.Sprintf("error setting interface %q IP to %v", ifaceName, i.Address())},
+		{setInterfaceExtraIP, fmt.Sprintf("error setting interface %q extra IP to %v", ifaceName, i.ExtraAddresses())},
 		{setInterfaceIPv6, fmt.Sprintf("error setting interface %q IPv6 to %v", ifaceName, i.AddressIPv6())},
 		{setInterfaceMaster, fmt.Sprintf("error setting interface %q master to %q", ifaceName, i.DstMaster())},
 	}
@@ -350,6 +364,22 @@ func setInterfaceIP(iface netlink.Link, i *nwIface) error {
 	ipAddr := &netlink.Addr{IPNet: i.Address(), Label: ""}
 	return netlink.AddrAdd(iface, ipAddr)
 }
+
+func setInterfaceExtraIP(iface netlink.Link, i *nwIface) error {
+	if i.ExtraAddresses() == nil {
+		return nil
+	}
+	for _, ip := range i.ExtraAddresses() {
+		if ip != nil {
+			ipAddr := &netlink.Addr{IPNet: ip, Label: ""}
+			if err := netlink.AddrAdd(iface, ipAddr); err != nil {
+				return err;
+			}
+		}
+	}
+	return nil
+}
+
 
 func setInterfaceIPv6(iface netlink.Link, i *nwIface) error {
 	if i.AddressIPv6() == nil {
