@@ -95,7 +95,7 @@ func NewNetFilter(ifaceName string, epOptions map[string]interface{}) *netFilter
 }
 
 func chainExists(chainName string) bool {
-	return iptables.Exists("", chainName, "-N", chainName)
+	return iptables.ExistChain(chainName, iptables.Filter)
 }
 
 func (n *netFilter) applyFiltering() error {
