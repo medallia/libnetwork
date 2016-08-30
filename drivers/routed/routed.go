@@ -209,7 +209,7 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 	}
 	// Set the primary IP Address
 	if err := ifInfo.SetIPAddress(ips[0]); err != nil {
-		return fmt.Errorf("could not set IP %s %v", ips[0])
+		return fmt.Errorf("could not set IP %s %v", ips[0], err)
 	}
 	// Set extra IP Addresses
 	if err := ifInfo.SetExtraIPAddresses(ips[1:]); err != nil {
