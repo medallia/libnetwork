@@ -394,6 +394,12 @@ func (c *controller) ReloadConfiguration(cfgOptions ...config.Option) error {
 	c.cfg = cfg
 	c.Unlock()
 
+	if c.discovery == nil && c.cfg.Cluster.Watcher != nil {
+		if err := c.initDiscovery(c.cfg.Cluster.Watcher); err != nil {
+			log.Errorf("Failed to Initialize Discovery after configuration update: %v", err)
+		}
+	}
+
 	var dsConfig *discoverapi.DatastoreConfigData
 	for scope, sCfg := range cfg.Scopes {
 		if scope == datastore.LocalScope || !sCfg.IsValid() {

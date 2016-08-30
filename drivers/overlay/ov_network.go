@@ -625,6 +625,7 @@ func (n *network) watchMiss(nlSock *nl.NetlinkSocket) {
 			if neigh.IP.To4() == nil {
 				continue
 			}
+			logrus.Debugf("miss notification for dest IP, %v", neigh.IP.String())
 
 			// Not any of the network's subnets. Ignore.
 			if !n.contains(neigh.IP) {

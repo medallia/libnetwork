@@ -10,6 +10,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/libnetwork/types"
+	"github.com/docker/libnetwork/netutils"
 	"github.com/miekg/dns"
 )
 
@@ -30,6 +31,9 @@ type Resolver interface {
 	// SetExtServers configures the external nameservers the resolver
 	// should use to forward queries
 	SetExtServers([]string)
+	// FlushExtServers clears the cached UDP connections to external
+	// nameservers
+	FlushExtServers()
 	// ResolverOptions returns resolv.conf options that should be set
 	ResolverOptions() []string
 }
@@ -45,7 +49,13 @@ const (
 	defaultRespSize = 512
 	maxConcurrent   = 100
 	logInterval     = 2 * time.Second
+	maxDNSID        = 65536
 )
+
+type clientConn struct {
+	dnsID      uint16
+	respWriter dns.ResponseWriter
+}
 
 type extDNSEntry struct {
 	ipStr string
@@ -63,6 +73,7 @@ type resolver struct {
 	count      int32
 	tStamp     time.Time
 	queryLock  sync.Mutex
+	client     map[uint16]clientConn
 }
 
 func init() {
@@ -72,8 +83,9 @@ func init() {
 // NewResolver creates a new instance of the Resolver
 func NewResolver(sb *sandbox) Resolver {
 	return &resolver{
-		sb:  sb,
-		err: fmt.Errorf("setup not done yet"),
+		sb:     sb,
+		err:    fmt.Errorf("setup not done yet"),
+		client: make(map[uint16]clientConn),
 	}
 }
 
@@ -130,7 +142,20 @@ func (r *resolver) Start() error {
 	return nil
 }
 
+func (r *resolver) FlushExtServers() {
+	for i := 0; i < maxExtDNS; i++ {
+		if r.extDNSList[i].extConn != nil {
+			r.extDNSList[i].extConn.Close()
+		}
+
+		r.extDNSList[i].extConn = nil
+		r.extDNSList[i].extOnce = sync.Once{}
+	}
+}
+
 func (r *resolver) Stop() {
+	r.FlushExtServers()
+
 	if r.server != nil {
 		r.server.Shutdown()
 	}
@@ -302,6 +327,7 @@ func (r *resolver) ServeDNS(w dns.ResponseWriter, query *dns.Msg) {
 		extConn net.Conn
 		resp    *dns.Msg
 		err     error
+		writer  dns.ResponseWriter
 	)
 
 	if query == nil || len(query.Question) == 0 {
@@ -343,7 +369,9 @@ func (r *resolver) ServeDNS(w dns.ResponseWriter, query *dns.Msg) {
 		if resp.Len() > maxSize {
 			truncateResp(resp, maxSize, proto == "tcp")
 		}
+		writer = w
 	} else {
+		queryID := query.Id
 		for i := 0; i < maxExtDNS; i++ {
 			extDNS := &r.extDNSList[i]
 			if extDNS.ipStr == "" {
@@ -370,8 +398,9 @@ func (r *resolver) ServeDNS(w dns.ResponseWriter, query *dns.Msg) {
 			}
 			defer co.Close()
 
-			// limits the number of outstanding concurrent queries.
-			if r.forwardQueryStart() == false {
+			// forwardQueryStart stores required context to mux multiple client queries over
+			// one connection; and limits the number of outstanding concurrent queries.
+			if r.forwardQueryStart(w, query, queryID) == false {
 				old := r.tStamp
 				r.tStamp = time.Now()
 				if r.tStamp.Sub(old) > logInterval {
@@ -380,9 +409,16 @@ func (r *resolver) ServeDNS(w dns.ResponseWriter, query *dns.Msg) {
 				continue
 			}
 
+			defer func() {
+				if proto == "tcp" {
+					co.Close()
+				}
+				continue
+			}
+
 			err = co.WriteMsg(query)
 			if err != nil {
-				r.forwardQueryEnd()
+				r.forwardQueryEnd(w, query)
 				log.Debugf("Send to DNS server failed, %s", err)
 				continue
 			}
@@ -391,27 +427,43 @@ func (r *resolver) ServeDNS(w dns.ResponseWriter, query *dns.Msg) {
 			// Truncated DNS replies should be sent to the client so that the
 			// client can retry over TCP
 			if err != nil && err != dns.ErrTruncated {
-				r.forwardQueryEnd()
+				r.forwardQueryEnd(w, query)
 				log.Debugf("Read from DNS server failed, %s", err)
 				continue
 			}
 
-			r.forwardQueryEnd()
+			// Retrieves the context for the forwarded query and returns the client connection
+			// to send the reply to
+			writer = r.forwardQueryEnd(w, resp)
+			if writer == nil {
+				continue
+			}
 
 			resp.Compress = true
 			break
 		}
-		if resp == nil {
+		if resp == nil || writer == nil {
 			return
 		}
 	}
 
-	if err = w.WriteMsg(resp); err != nil {
+	if writer == nil {
+		return
+	}
+	if err = writer.WriteMsg(resp); err != nil {
 		log.Errorf("error writing resolver resp, %s", err)
 	}
 }
 
-func (r *resolver) forwardQueryStart() bool {
+func (r *resolver) forwardQueryStart(w dns.ResponseWriter, msg *dns.Msg, queryID uint16) bool {
+	proto := w.LocalAddr().Network()
+	dnsID := uint16(rand.Intn(maxDNSID))
+
+	cc := clientConn{
+		dnsID:      queryID,
+		respWriter: w,
+	}
+
 	r.queryLock.Lock()
 	defer r.queryLock.Unlock()
 
@@ -423,7 +475,13 @@ func (r *resolver) forwardQueryStart() bool {
 	return true
 }
 
-func (r *resolver) forwardQueryEnd() {
+func (r *resolver) forwardQueryEnd(w dns.ResponseWriter, msg *dns.Msg) dns.ResponseWriter {
+	var (
+		cc clientConn
+		ok bool
+	)
+	proto := w.LocalAddr().Network()
+
 	r.queryLock.Lock()
 	defer r.queryLock.Unlock()
 
@@ -432,4 +490,22 @@ func (r *resolver) forwardQueryEnd() {
 	} else {
 		r.count--
 	}
+
+	switch proto {
+	case "tcp":
+		break
+	case "udp":
+		if cc, ok = r.client[msg.Id]; ok == false {
+			log.Debugf("Can't retrieve client context for dns id %v", msg.Id)
+			return nil
+		}
+		log.Debugf("dns msg id %v, client id %v", msg.Id, cc.dnsID)
+		delete(r.client, msg.Id)
+		msg.Id = cc.dnsID
+		w = cc.respWriter
+	default:
+		log.Errorf("Invalid protocol")
+		return nil
+	}
+	return w
 }

@@ -236,6 +236,26 @@
 			"Rev": "7283ef27ed32fe267388510a91709b307bb9942c"
 		},
 		{
+			"ImportPath": "github.com/docker/libkv/store",
+			"Rev": "c2aac5dbbaa5c872211edea7c0f32b3bd67e7410"
+		},
+		{
+			"ImportPath": "github.com/docker/libkv/store/boltdb",
+			"Rev": "c2aac5dbbaa5c872211edea7c0f32b3bd67e7410"
+		},
+		{
+			"ImportPath": "github.com/docker/libkv/store/consul",
+			"Rev": "c2aac5dbbaa5c872211edea7c0f32b3bd67e7410"
+		},
+		{
+			"ImportPath": "github.com/docker/libkv/store/etcd",
+			"Rev": "c2aac5dbbaa5c872211edea7c0f32b3bd67e7410"
+		},
+		{
+			"ImportPath": "github.com/docker/libkv/store/zookeeper",
+			"Rev": "c2aac5dbbaa5c872211edea7c0f32b3bd67e7410"
+		},
+		{
 			"ImportPath": "github.com/godbus/dbus",
 			"Comment": "v4.0.0",
 			"Rev": "5f6efc7ef2759c81b7ba876593971bfce311eab3"
@@ -404,6 +424,10 @@
 		{
 			"ImportPath": "github.com/vishvananda/netlink/nl",
 			"Rev": "e73bad418fd727ed3a02830b1af1ad0283a1de6c"
+		},
+		{
+			"ImportPath": "github.com/vishvananda/netlink/nl",
+			"Rev": "631962935bff4f3d20ff32a72e8944f6d2836a26"
 		},
 		{
 			"ImportPath": "github.com/vishvananda/netns",

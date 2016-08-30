@@ -536,6 +536,9 @@ func (ep *endpoint) sbJoin(sb *sandbox, options ...EndpointOption) error {
 			}
 		}
 
+		if sb.resolver != nil {
+			sb.resolver.FlushExtServers()
+		}
 	}
 
 	if !sb.needDefaultGW() {
@@ -615,6 +618,10 @@ func (ep *endpoint) Leave(sbox Sandbox, options ...EndpointOption) error {
 
 	sb.joinLeaveStart()
 	defer sb.joinLeaveEnd()
+
+	if sb.resolver != nil {
+		sb.resolver.FlushExtServers()
+	}
 
 	return ep.sbLeave(sb, false, options...)
 }
@@ -710,6 +717,18 @@ func (ep *endpoint) sbLeave(sb *sandbox, force bool, options ...EndpointOption) 
 			log.Warnf("Failure while disconnecting sandbox %s (%s) from gateway network: %v",
 				sb.ID(), sb.ContainerID(), err)
 		}
+	}
+
+	return nil
+}
+
+func (n *network) validateForceDelete(locator string) error {
+	if n.Scope() == datastore.LocalScope {
+		return nil
+	}
+
+	if locator == "" {
+		return fmt.Errorf("invalid endpoint locator identifier")
 	}
 
 	return nil
@@ -959,7 +978,8 @@ func (ep *endpoint) assignAddress(ipam ipamapi.Ipam, assignIPv4, assignIPv6 bool
 	var err error
 
 	n := ep.getNetwork()
-	if n.hasSpecialDriver() {
+	if n.hasSpecialDriver() || n.Type() == "routed" {
+		log.Debugf("Not assigning addresses for endpoint %s", ep.Name())
 		return nil
 	}
 
@@ -1039,7 +1059,7 @@ func (ep *endpoint) assignAddressVersion(ipVer int, ipam ipamapi.Ipam) error {
 
 func (ep *endpoint) releaseAddress() {
 	n := ep.getNetwork()
-	if n.hasSpecialDriver() {
+	if n.hasSpecialDriver() || n.Type() == "routed" {
 		return
 	}
 
