@@ -383,14 +383,14 @@ func setInterfaceIP(nlh *netlink.Handle, iface netlink.Link, i *nwIface) error {
 	return nlh.AddrAdd(iface, ipAddr)
 }
 
-func setInterfaceExtraIP(iface netlink.Link, i *nwIface) error {
+func setInterfaceExtraIP(nlh *netlink.Handle, iface netlink.Link, i *nwIface) error {
 	if i.ExtraAddresses() == nil {
 		return nil
 	}
 	for _, ip := range i.ExtraAddresses() {
 		if ip != nil {
 			ipAddr := &netlink.Addr{IPNet: ip, Label: ""}
-			if err := netlink.AddrAdd(iface, ipAddr); err != nil {
+			if err := nlh.AddrAdd(iface, ipAddr); err != nil {
 				return err;
 			}
 		}

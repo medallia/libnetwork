@@ -11,9 +11,9 @@ import (
 	"github.com/docker/libnetwork/datastore"
 	"github.com/docker/libnetwork/discoverapi"
 	"github.com/docker/libnetwork/driverapi"
-	"github.com/docker/libnetwork/types"
 	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/netutils"
+	"github.com/docker/libnetwork/types"
 	"github.com/vishvananda/netlink"
 )
 
@@ -21,7 +21,7 @@ const (
 	networkType = "routed"
 	ifaceID     = 1
 	defaultMtu  = 9000
-	VethPrefix  = "vethr" 
+	VethPrefix  = "vethr"
 )
 
 type routedNetwork struct {
@@ -31,33 +31,32 @@ type routedNetwork struct {
 }
 
 type routedEndpoint struct {
-	id              string
-	srcName         string
-	dstName         string
-	macAddress      net.HardwareAddr
-	hostInterface   string
-	ipv4Addresses   []netlink.Addr
-	netFilter	*netFilter
+	id            string
+	srcName       string
+	dstName       string
+	macAddress    net.HardwareAddr
+	hostInterface string
+	ipv4Addresses []netlink.Addr
+	netFilter     *netFilter
 }
 
 // configuration info for the "routed" driver.
 type configuration struct {
-		mtu			int
+	mtu int
 }
 
 type driver struct {
-	config      *configuration
-	network     *routedNetwork
-	networks    map[string]*routedNetwork
-	store       datastore.DataStore
+	config   *configuration
+	network  *routedNetwork
+	networks map[string]*routedNetwork
+	store    datastore.DataStore
 	sync.Mutex
 }
 
-
 // Init registers a new instance of routed driver
-func Init(dc driverapi.DriverCallback, config map[string]interface {}) error {
+func Init(dc driverapi.DriverCallback, config map[string]interface{}) error {
 	logrus.Warnf("Init Driver %s", networkType)
-	links, err := netlink.LinkList();
+	links, err := netlink.LinkList()
 	if err != nil {
 		logrus.Errorf("Can't get list of net devices: %s", err)
 		return err
@@ -72,7 +71,7 @@ func Init(dc driverapi.DriverCallback, config map[string]interface {}) error {
 			}
 		}
 	}
-	
+
 	d := newDriver()
 	d.config.mtu = defaultMtu
 	c := driverapi.Capability{
@@ -86,8 +85,7 @@ func newDriver() *driver {
 	return &driver{networks: map[string]*routedNetwork{}, config: &configuration{}}
 }
 
-
-func (d *driver) CreateNetwork(id string, option map[string]interface{}, ipV4Data, ipV6Data []driverapi.IPAMData) error {
+func (d *driver) CreateNetwork(id string, option map[string]interface{}, nInfo driverapi.NetworkInfo, ipV4Data, ipV6Data []driverapi.IPAMData) error {
 	logrus.Warnf("CreateNetwork: id=%s - option=%s", id, option)
 	d.network = &routedNetwork{id: id, endpoints: make(map[string]*routedEndpoint)}
 	return nil
@@ -104,12 +102,12 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 	logrus.Debugf("nid=%s", nid)
 	logrus.Debugf("eid=%s", eid)
 	logrus.Debugf("epOptions= %s", epOptions)
-	
+
 	logrus.Debugf("IPV4: %s", epOptions[netlabel.IPv4Addresses])
 	if epOptions[netlabel.IPv4Addresses] == nil {
 		return errors.New("Empty list of IP addresses passed to the routed(local) driver")
 	}
-	
+
 	// Generate host veth
 	hostIfaceName, err := generateIfaceName(VethPrefix + string(eid)[:4])
 	if err != nil {
@@ -126,7 +124,7 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 
 	veth := &netlink.Veth{
 		LinkAttrs: netlink.LinkAttrs{
-			Name: hostIfaceName,
+			Name:   hostIfaceName,
 			TxQLen: 0},
 		PeerName: containerIfaceName}
 
@@ -136,7 +134,7 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 
 	hostIface, err := netlink.LinkByName(hostIfaceName)
 	if err != nil {
-		logrus.Errorf("Can't find Host Interface: %s", hostIfaceName)	
+		logrus.Errorf("Can't find Host Interface: %s", hostIfaceName)
 		return err
 	}
 	defer func() {
@@ -165,7 +163,7 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 	network.endpoints[eid] = endpoint
 
 	ipv4Addresses := epOptions[netlabel.IPv4Addresses].([]net.IPNet)
-	
+
 	if d.config.mtu != 0 {
 		err = netlink.LinkSetMTU(hostIface, d.config.mtu)
 		if err != nil {
@@ -215,11 +213,11 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 	if err := ifInfo.SetExtraIPAddresses(ips[1:]); err != nil {
 		return fmt.Errorf("could not set IP %s %v", ips[1:], err)
 	}
-	
+
 	endpoint.srcName = containerIfaceName
-	endpoint.dstName = "eth" 
+	endpoint.dstName = "eth"
 	endpoint.macAddress = ifInfo.MacAddress()
-	endpoint.ipv4Addresses = addresses 
+	endpoint.ipv4Addresses = addresses
 	endpoint.hostInterface = hostIfaceName
 
 	endpoint.netFilter = NewNetFilter(hostIfaceName, epOptions)
@@ -270,7 +268,7 @@ func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo,
 
 	network := d.network
 	endpoint := network.endpoints[eid]
-	
+
 	// add route in the host to the container IP addresses.
 	for _, ipv4 := range endpoint.ipv4Addresses {
 		err := routeAdd(ipv4.IPNet, "", "", endpoint.hostInterface)
@@ -289,7 +287,7 @@ func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo,
 	if endpoint == nil {
 		return errors.New("Endpoint not found")
 	}
-	
+
 	logrus.Debugf("InterfaceNameInfo: %s setNames %s -> %s", jinfo.InterfaceName(), endpoint.srcName, endpoint.dstName)
 	err := jinfo.InterfaceName().SetNames(endpoint.srcName, endpoint.dstName)
 	if err != nil {
@@ -326,6 +324,16 @@ func (d *driver) DiscoverDelete(dType discoverapi.DiscoveryType, data interface{
 	return nil
 }
 
+func (d *driver) NetworkAllocate(id string, option map[string]string, ipV4Data, ipV6Data []driverapi.IPAMData) (map[string]string, error) {
+	return nil, types.NotImplementedErrorf("not implemented")
+}
+
+func (d *driver) NetworkFree(id string) error {
+	return types.NotImplementedErrorf("not implemented")
+}
+
+func (d *driver) EventNotify(etype driverapi.EventType, nid, tableName, key string, value []byte) {
+}
 
 func electMacAddress(mac net.HardwareAddr, ip net.IP) net.HardwareAddr {
 	if mac != nil {
@@ -336,7 +344,7 @@ func electMacAddress(mac net.HardwareAddr, ip net.IP) net.HardwareAddr {
 }
 
 func generateIfaceName(vethPrefix string) (string, error) {
-	vethLen:= 12 - len(vethPrefix)
+	vethLen := 12 - len(vethPrefix)
 	for i := 0; i < 3; i++ {
 		name, err := netutils.GenerateRandomName(vethPrefix, vethLen)
 		if err != nil {

@@ -10,7 +10,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/libnetwork/types"
-	"github.com/docker/libnetwork/netutils"
 	"github.com/miekg/dns"
 )
 
@@ -58,7 +57,9 @@ type clientConn struct {
 }
 
 type extDNSEntry struct {
-	ipStr string
+	ipStr   string
+	extConn net.Conn
+	extOnce sync.Once
 }
 
 // resolver implements the Resolver interface
@@ -409,12 +410,13 @@ func (r *resolver) ServeDNS(w dns.ResponseWriter, query *dns.Msg) {
 				continue
 			}
 
-			defer func() {
-				if proto == "tcp" {
-					co.Close()
-				}
-				continue
-			}
+			// TODO: VERIFY!!
+			//defer func() {
+			//	if proto == "tcp" {
+			//		co.Close()
+			//	}
+			//	continue
+			//}()
 
 			err = co.WriteMsg(query)
 			if err != nil {
@@ -456,13 +458,16 @@ func (r *resolver) ServeDNS(w dns.ResponseWriter, query *dns.Msg) {
 }
 
 func (r *resolver) forwardQueryStart(w dns.ResponseWriter, msg *dns.Msg, queryID uint16) bool {
-	proto := w.LocalAddr().Network()
-	dnsID := uint16(rand.Intn(maxDNSID))
+	// TODO: VERIFY!!!
+	/*
+		proto := w.LocalAddr().Network()
+		dnsID := uint16(rand.Intn(maxDNSID))
 
-	cc := clientConn{
-		dnsID:      queryID,
-		respWriter: w,
-	}
+		cc := clientConn{
+			dnsID:      queryID,
+			respWriter: w,
+		}
+	*/
 
 	r.queryLock.Lock()
 	defer r.queryLock.Unlock()
@@ -471,6 +476,23 @@ func (r *resolver) forwardQueryStart(w dns.ResponseWriter, msg *dns.Msg, queryID
 		return false
 	}
 	r.count++
+
+	// TODO: VERIFY!!!
+	/*
+		switch proto {
+		case "tcp":
+			break
+		case "udp":
+			for ok := true; ok == true; dnsID = uint16(rand.Intn(maxDNSID)) {
+				_, ok = r.client[dnsID]
+			}
+			log.Debugf("client dns id %v, changed id %v", queryID, dnsID)
+			r.client[dnsID] = cc
+			msg.Id = dnsID
+		default:
+			log.Errorf("Invalid protocol..")
+			return false
+		}*/
 
 	return true
 }
