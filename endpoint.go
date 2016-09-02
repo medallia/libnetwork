@@ -535,7 +535,6 @@ func (ep *endpoint) sbJoin(sb *sandbox, options ...EndpointOption) error {
 					ep.Name(), ep.ID(), err)
 			}
 		}
-
 	}
 
 	if !sb.needDefaultGW() {
@@ -959,7 +958,8 @@ func (ep *endpoint) assignAddress(ipam ipamapi.Ipam, assignIPv4, assignIPv6 bool
 	var err error
 
 	n := ep.getNetwork()
-	if n.hasSpecialDriver() {
+	if n.hasSpecialDriver() || n.Type() == "routed" {
+		log.Debugf("Not assigning addresses for endpoint %s", ep.Name())
 		return nil
 	}
 
@@ -1039,7 +1039,7 @@ func (ep *endpoint) assignAddressVersion(ipVer int, ipam ipamapi.Ipam) error {
 
 func (ep *endpoint) releaseAddress() {
 	n := ep.getNetwork()
-	if n.hasSpecialDriver() {
+	if n.hasSpecialDriver() || n.Type() == "routed" {
 		return
 	}
 

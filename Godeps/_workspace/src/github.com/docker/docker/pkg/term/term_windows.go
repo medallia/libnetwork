@@ -69,6 +69,21 @@ func useNativeConsole() bool {
 	if err != nil {
 		return false
 	}
+	// Native console is not available before major version 10
+	if osv.MajorVersion < 10 {
+		return false
+	}
+
+	// Probe the console to see if it can be enabled.
+	if nil != probeNativeConsole(state) {
+		return false
+	}
+
+	// Get the console modes. If this fails, we can't use the native console
+	state, err := getNativeConsole()
+	if err != nil {
+		return false
+	}
 
 	// Probe the console to see if it can be enabled.
 	if nil != probeNativeConsole(state) {
@@ -184,7 +199,9 @@ func GetWinsize(fd uintptr) (*Winsize, error) {
 	winsize := &Winsize{
 		Width:  uint16(info.Window.Right - info.Window.Left + 1),
 		Height: uint16(info.Window.Bottom - info.Window.Top + 1),
-	}
+		x:      0,
+		y:      0,
+    }
 
 	return winsize, nil
 }
