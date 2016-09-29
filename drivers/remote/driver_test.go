@@ -73,6 +73,7 @@ type testEndpoint struct {
 	address               string
 	addressIPv6           string
 	macAddress            string
+	ipAliases             []string
 	gateway               string
 	gatewayIPv6           string
 	resolvConfPath        string
@@ -111,6 +112,18 @@ func (test *testEndpoint) MacAddress() net.HardwareAddr {
 	return mac
 }
 
+func (test *testEndpoint) IPAliases() []*net.IPNet {
+	if test.ipAliases == nil {
+		return nil
+	}
+	var ipAliases = make([]*net.IPNet, 0)
+	for _, alias := range test.ipAliases {
+		ip, _ := types.ParseCIDR(alias)
+		ipAliases = append(ipAliases, ip)
+	}
+	return ipAliases
+}
+
 func (test *testEndpoint) SetMacAddress(mac net.HardwareAddr) error {
 	if test.macAddress != "" {
 		return types.ForbiddenErrorf("endpoint interface MAC address present (%s). Cannot be modified with %s.", test.macAddress, mac)
@@ -137,6 +150,21 @@ func setAddress(ifaceAddr *string, address *net.IPNet) error {
 		return types.ForbiddenErrorf("endpoint interface IP present (%s). Cannot be modified with (%s).", *ifaceAddr, address)
 	}
 	*ifaceAddr = address.String()
+	return nil
+}
+
+func (test *testEndpoint) SetIPAliases(aliases []*net.IPNet) error {
+	if aliases == nil {
+		return types.BadRequestErrorf("tried to set nil IP aliases to endpoint interface")
+	}
+	if test.ipAliases != nil {
+		return types.ForbiddenErrorf("endpoint aliases present. Cannot be modified with (%s).", aliases)
+	}
+	var ipAliases []string
+	for _, alias := range aliases {
+		ipAliases = append(ipAliases, alias.String())
+	}
+	test.ipAliases = ipAliases
 	return nil
 }
 
@@ -298,6 +326,7 @@ func TestRemoteDriver(t *testing.T) {
 		address:        "192.168.5.7/16",
 		addressIPv6:    "2001:DB8::5:7/48",
 		macAddress:     "ab:cd:ef:ee:ee:ee",
+		ipAliases:      []string{"192.168.255.255/32", "192.168.1.1/32"},
 		gateway:        "192.168.0.1",
 		gatewayIPv6:    "2001:DB8::1",
 		hostsPath:      "/here/comes/the/host/path",
@@ -336,6 +365,7 @@ func TestRemoteDriver(t *testing.T) {
 			"MacAddress":  ep.macAddress,
 			"Address":     ep.address,
 			"AddressIPv6": ep.addressIPv6,
+			"IPAliases":   ep.ipAliases,
 		}
 		return map[string]interface{}{
 			"Interface": iface,
@@ -491,6 +521,7 @@ func TestMissingValues(t *testing.T) {
 			"Address":     ep.address,
 			"AddressIPv6": ep.addressIPv6,
 			"MacAddress":  ep.macAddress,
+			"IPAliases":   ep.ipAliases,
 		}
 		return map[string]interface{}{
 			"Interface": iface,
@@ -527,12 +558,20 @@ func (r *rollbackEndpoint) AddressIPv6() *net.IPNet {
 	return nil
 }
 
+func (r *rollbackEndpoint) IPAliases() []*net.IPNet {
+	return nil
+}
+
 func (r *rollbackEndpoint) SetMacAddress(mac net.HardwareAddr) error {
 	return fmt.Errorf("invalid mac")
 }
 
 func (r *rollbackEndpoint) SetIPAddress(ip *net.IPNet) error {
 	return fmt.Errorf("invalid ip")
+}
+
+func (r *rollbackEndpoint) SetIPAliases(aliases []*net.IPNet) error {
+	return nil
 }
 
 func TestRollback(t *testing.T) {
@@ -548,6 +587,7 @@ func TestRollback(t *testing.T) {
 			"Address":     "192.168.4.5/16",
 			"AddressIPv6": "",
 			"MacAddress":  "7a:12:34:56:78:90",
+			"IPAliases":   []string{"192.168.255.255/32", "192.168.1.1/32"},
 		}
 		return map[string]interface{}{
 			"Interface": interface{}(iface),

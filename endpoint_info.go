@@ -46,6 +46,9 @@ type InterfaceInfo interface {
 
 	// LinkLocalAddresses returns the list of link-local (IPv4/IPv6) addresses assigned to the endpoint.
 	LinkLocalAddresses() []*net.IPNet
+
+	// IPAliases returns the IP aliases assigned to the interface
+	IPAliases() []*net.IPNet
 }
 
 type endpointInterface struct {
@@ -58,6 +61,7 @@ type endpointInterface struct {
 	routes    []*net.IPNet
 	v4PoolID  string
 	v6PoolID  string
+	ipAliases []*net.IPNet
 }
 
 func (epi *endpointInterface) MarshalJSON() ([]byte, error) {
@@ -87,6 +91,11 @@ func (epi *endpointInterface) MarshalJSON() ([]byte, error) {
 	epMap["routes"] = routes
 	epMap["v4PoolID"] = epi.v4PoolID
 	epMap["v6PoolID"] = epi.v6PoolID
+	var aliases []string
+	for _, ips := range epi.ipAliases {
+		aliases = append(aliases, ips.String())
+	}
+	epMap["ipAliases"] = aliases
 	return json.Marshal(epMap)
 }
 
@@ -141,6 +150,16 @@ func (epi *endpointInterface) UnmarshalJSON(b []byte) error {
 	epi.v4PoolID = epMap["v4PoolID"].(string)
 	epi.v6PoolID = epMap["v6PoolID"].(string)
 
+	al, _ := json.Marshal(epMap["ipAliases"])
+	var aliases []string
+	json.Unmarshal(al, &aliases)
+	epi.ipAliases = make([]*net.IPNet, 0)
+	for _, alias := range aliases {
+		ip, err := types.ParseCIDR(alias)
+		if err == nil {
+			epi.ipAliases = append(epi.ipAliases, ip)
+		}
+	}
 	return nil
 }
 
@@ -161,6 +180,10 @@ func (epi *endpointInterface) CopyTo(dstEpi *endpointInterface) error {
 
 	for _, route := range epi.routes {
 		dstEpi.routes = append(dstEpi.routes, types.GetIPNetCopy(route))
+	}
+
+	for _, alias := range epi.ipAliases {
+		dstEpi.ipAliases = append(dstEpi.ipAliases, types.GetIPNetCopy(alias))
 	}
 
 	return nil
@@ -281,6 +304,20 @@ func setAddress(ifaceAddr **net.IPNet, address *net.IPNet) error {
 	return nil
 }
 
+func (epi *endpointInterface) SetIPAliases(aliases []*net.IPNet) error {
+	if aliases == nil {
+		return types.BadRequestErrorf("tried to set nil IP aliases to endpoint interface")
+	}
+	if epi.ipAliases != nil {
+		return types.ForbiddenErrorf("endpoint aliases present. Cannot be modified with (%s).", aliases)
+	}
+	epi.ipAliases = make([]*net.IPNet, 0)
+	for _, alias := range aliases {
+		epi.ipAliases = append(epi.ipAliases, types.GetIPNetCopy(alias))
+	}
+	return nil
+}
+
 func (epi *endpointInterface) MacAddress() net.HardwareAddr {
 	return types.GetMacCopy(epi.mac)
 }
@@ -291,6 +328,14 @@ func (epi *endpointInterface) Address() *net.IPNet {
 
 func (epi *endpointInterface) AddressIPv6() *net.IPNet {
 	return types.GetIPNetCopy(epi.addrv6)
+}
+
+func (epi *endpointInterface) IPAliases() []*net.IPNet {
+	var aliases []*net.IPNet
+	for _, alias := range epi.ipAliases {
+		aliases = append(aliases, types.GetIPNetCopy(alias))
+	}
+	return aliases
 }
 
 func (epi *endpointInterface) LinkLocalAddresses() []*net.IPNet {
