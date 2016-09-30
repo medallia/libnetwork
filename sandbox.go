@@ -850,6 +850,9 @@ func (sb *sandbox) populateNetworkResources(ep *endpoint) error {
 			vipAlias := &net.IPNet{IP: ep.virtualIP, Mask: net.CIDRMask(32, 32)}
 			ifaceOptions = append(ifaceOptions, sb.osSbox.InterfaceOptions().IPAliases([]*net.IPNet{vipAlias}))
 		}
+		if i.ipAliases != nil {
+			ifaceOptions = append(ifaceOptions, sb.osSbox.InterfaceOptions().IPAliases(i.ipAliases))
+		}
 		if i.mac != nil {
 			ifaceOptions = append(ifaceOptions, sb.osSbox.InterfaceOptions().MacAddress(i.mac))
 		}
