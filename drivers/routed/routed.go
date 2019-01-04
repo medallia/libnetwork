@@ -15,8 +15,6 @@ import (
 	"github.com/docker/libnetwork/netutils"
 	"github.com/docker/libnetwork/types"
 	"github.com/vishvananda/netlink"
-
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -211,8 +209,11 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 	}
 
 	localLinkIp, _ := netlink.ParseIPNet(sandboxLinkLocalAddress)
-	addresses = append(addresses, netlink.Addr{IPNet: localLinkIp, Scope: unix.RT_SCOPE_LINK})
-	ips = append(ips, localLinkIp)
+
+	// Set the link-local IP Address
+	if err := ifInfo.SetLinkLocalIPAddress(localLinkIp); err != nil {
+		return fmt.Errorf("could not set link-local IP %s %v", localLinkIp, err)
+	}
 
 	// Set the primary IP Address
 	if err := ifInfo.SetIPAddress(ips[0]); err != nil {
@@ -280,14 +281,10 @@ func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo,
 
 	// add route in the host to the container IP addresses.
 	for _, ipv4 := range endpoint.ipv4Addresses {
-		if ipv4.Scope == unix.RT_SCOPE_LINK {
-			logrus.Infof("Not Adding Route for link-local Address %s", ipv4.IPNet)
-		} else {
-			err := routeAdd(ipv4.IPNet, "", "", endpoint.hostInterface)
-			if err != nil {
-				logrus.Errorf("Can't Add Route to %s -> %s : %v", ipv4, endpoint.hostInterface, err)
-				return err
-			}
+		err := routeAdd(ipv4.IPNet, "", "", endpoint.hostInterface)
+		if err != nil {
+			logrus.Errorf("Can't Add Route to %s -> %s : %v", ipv4, endpoint.hostInterface, err)
+			return err
 		}
 	}
 	// add static default route with the virtual link-local IP of the host (169.254.0.1)
