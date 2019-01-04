@@ -7,23 +7,21 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/sirupsen/logrus"
 	"github.com/docker/libnetwork/datastore"
 	"github.com/docker/libnetwork/discoverapi"
 	"github.com/docker/libnetwork/driverapi"
 	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/netutils"
 	"github.com/docker/libnetwork/types"
+	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
-
-	"golang.org/x/sys/unix"
 )
 
 const (
-	networkType = "routed"
-	ifaceID     = 1
-	defaultMtu  = 9000
-	vethPrefix  = "vethr"
+	networkType             = "routed"
+	ifaceID                 = 1
+	defaultMtu              = 9000
+	vethPrefix              = "vethr"
 	sandboxLinkLocalAddress = "169.254.0.2/30"
 	defaultGw               = "169.254.0.1/30"
 )
@@ -211,8 +209,9 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 	}
 
 	localLinkIp, _ := netlink.ParseIPNet(sandboxLinkLocalAddress)
-	addresses = append(addresses, netlink.Addr{IPNet: localLinkIp, Scope: unix.RT_SCOPE_LINK})
-	ips = append(ips, localLinkIp)
+	if err := ifInfo.SetLinkLocalAddress(localLinkIp); err != nil {
+		return fmt.Errorf("could not set linklocal IP %s %v", localLinkIp, err)
+	}
 
 	// Set the primary IP Address
 	if err := ifInfo.SetIPAddress(ips[0]); err != nil {
@@ -228,7 +227,6 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 	endpoint.macAddress = ifInfo.MacAddress()
 	endpoint.ipv4Addresses = addresses
 	endpoint.hostInterface = hostIfaceName
-
 	endpoint.netFilter = newNetFilter(hostIfaceName, epOptions)
 	if err := endpoint.netFilter.applyFiltering(); err != nil {
 		return fmt.Errorf("could not add net filtering %v", err)
@@ -280,14 +278,10 @@ func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo,
 
 	// add route in the host to the container IP addresses.
 	for _, ipv4 := range endpoint.ipv4Addresses {
-		if ipv4.Scope == unix.RT_SCOPE_LINK {
-			logrus.Infof("Not Adding Route for link-local Address %s", ipv4.IPNet)
-		} else {
-			err := routeAdd(ipv4.IPNet, "", "", endpoint.hostInterface)
-			if err != nil {
-				logrus.Errorf("Can't Add Route to %s -> %s : %v", ipv4, endpoint.hostInterface, err)
-				return err
-			}
+		err := routeAdd(ipv4.IPNet, "", "", endpoint.hostInterface)
+		if err != nil {
+			logrus.Errorf("Can't Add Route to %s -> %s : %v", ipv4, endpoint.hostInterface, err)
+			return err
 		}
 	}
 	// add static default route with the virtual link-local IP of the host (169.254.0.1)
