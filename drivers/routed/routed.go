@@ -206,7 +206,7 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 	for i := range ipv4Addresses {
 		addresses[i] = netlink.Addr{IPNet: &ipv4Addresses[i]}
 		ips[i] = &ipv4Addresses[i]
-	} http.ResponseWriter, r *http.Request
+	}
 
 	localLinkIp, _ := netlink.ParseIPNet(sandboxLinkLocalAddress)
 	addresses = append(addresses, netlink.Addr{IPNet: localLinkIp, Scope: unix.RT_SCOPE_LINK})
