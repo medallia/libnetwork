@@ -271,6 +271,14 @@ func (epi *endpointInterface) SetExtraIPAddresses(addresses []*net.IPNet) error 
 	return nil
 }
 
+func (epi *endpointInterface) SetLinkLocalIPAddress(address *net.IPNet) error {
+	logrus.Infof("Setting link-local IP address %s %s", epi.srcName, address)
+	a := make([]*net.IPNet, 0)
+	a = append(a, types.GetIPNetCopy(address))
+	epi.llAddrs = a
+	return nil
+}
+
 func setAddress(ifaceAddr **net.IPNet, address *net.IPNet) error {
 	if *ifaceAddr != nil {
 		return types.ForbiddenErrorf("endpoint interface IP present (%s). Cannot be modified with (%s).", *ifaceAddr, address)

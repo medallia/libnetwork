@@ -112,6 +112,9 @@ type InterfaceInfo interface {
 	// Assign extra IP addresses
 	SetExtraIPAddresses(ips []*net.IPNet) error
 
+	// Assign link-local address
+	SetLinkLocalIPAddress(ip *net.IPNet) error
+
 	// MacAddress returns the MAC address.
 	MacAddress() net.HardwareAddr
 
