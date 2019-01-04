@@ -22,6 +22,8 @@ const (
 	ifaceID     = 1
 	defaultMtu  = 9000
 	vethPrefix  = "vethr"
+	sandboxLinkLocallAddress = "169.254.0.2/30"
+	defaultGw               = "169.254.0.1/30"
 )
 
 type routedNetwork struct {
@@ -204,7 +206,12 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 	for i := range ipv4Addresses {
 		addresses[i] = netlink.Addr{IPNet: &ipv4Addresses[i]}
 		ips[i] = &ipv4Addresses[i]
-	}
+	} http.ResponseWriter, r *http.Request
+
+	localLinkIp, _ := netlink.ParseIPNet(sandboxLinkLocalAddress)
+	addresses = append(addresses, netlink.Addr{IPNet: localLinkIp, Scope: unix.RT_SCOPE_LINK})
+	ips = append(ips, localLinkIp)
+
 	// Set the primary IP Address
 	if err := ifInfo.SetIPAddress(ips[0]); err != nil {
 		return fmt.Errorf("could not set IP %s %v", ips[0], err)
@@ -271,15 +278,22 @@ func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo,
 
 	// add route in the host to the container IP addresses.
 	for _, ipv4 := range endpoint.ipv4Addresses {
-		err := routeAdd(ipv4.IPNet, "", "", endpoint.hostInterface)
-		if err != nil {
-			logrus.Errorf("Can't Add Route to %s -> %s : %v", ipv4, endpoint.hostInterface, err)
-			return err
+		if ipv4.Scope == unix.RT_SCOPE_LINK {
+			logrus.Infof("Not Adding Route for link-local Address %s", ipv4.IPNet)
+		} else {
+			err := routeAdd(ipv4.IPNet, "", "", endpoint.hostInterface)
+			if err != nil {
+				logrus.Errorf("Can't Add Route to %s -> %s : %v", ipv4, endpoint.hostInterface, err)
+				return err
+			}
 		}
 	}
-	// add static default route through the veth in the sandbox
+	// add static default route with the virtual link-local IP of the host (169.254.0.1)
+	// through the veth in the sandbox. The host does not have this IP, but it will
+	// respond anyway due to proxy-arp.
 	_, dip, _ := net.ParseCIDR("0.0.0.0/0")
-	if err := jinfo.AddStaticRoute(dip, types.CONNECTED, nil); err != nil {
+	hostGatewayIP, _ := netlink.ParseIPNet(defaultGw)
+	if err := jinfo.AddStaticRoute(dip, types.NEXTHOP, hostGatewayIP.IP); err != nil {
 		return fmt.Errorf("could not Add static route %v", err)
 	}
 
