@@ -15,6 +15,8 @@ import (
 	"github.com/docker/libnetwork/netutils"
 	"github.com/docker/libnetwork/types"
 	"github.com/vishvananda/netlink"
+
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -22,7 +24,7 @@ const (
 	ifaceID     = 1
 	defaultMtu  = 9000
 	vethPrefix  = "vethr"
-	sandboxLinkLocallAddress = "169.254.0.2/30"
+	sandboxLinkLocalAddress = "169.254.0.2/30"
 	defaultGw               = "169.254.0.1/30"
 )
 
