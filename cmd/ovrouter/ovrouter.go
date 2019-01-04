@@ -46,6 +46,10 @@ func (ep *endpoint) SetExtraIPAddresses(addresses []*net.IPNet) error {
 	return nil
 }
 
+func (ep *endpoint) SetLinkLocalIPAddress(address *net.IPNet) error {
+	return nil
+}
+
 func (ep *endpoint) SetMacAddress(mac net.HardwareAddr) error {
 	if ep.mac != nil {
 		return types.ForbiddenErrorf("endpoint interface MAC address present (%s). Cannot be modified with %s.", ep.mac, mac)

@@ -22,6 +22,8 @@ const (
 	ifaceID     = 1
 	defaultMtu  = 9000
 	vethPrefix  = "vethr"
+	sandboxLinkLocalAddress = "169.254.0.2/30"
+	defaultGw               = "169.254.0.1/30"
 )
 
 type routedNetwork struct {
@@ -205,6 +207,14 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 		addresses[i] = netlink.Addr{IPNet: &ipv4Addresses[i]}
 		ips[i] = &ipv4Addresses[i]
 	}
+
+	localLinkIp, _ := netlink.ParseIPNet(sandboxLinkLocalAddress)
+
+	// Set the link-local IP Address
+	if err := ifInfo.SetLinkLocalIPAddress(localLinkIp); err != nil {
+		return fmt.Errorf("could not set link-local IP %s %v", localLinkIp, err)
+	}
+
 	// Set the primary IP Address
 	if err := ifInfo.SetIPAddress(ips[0]); err != nil {
 		return fmt.Errorf("could not set IP %s %v", ips[0], err)
@@ -277,9 +287,12 @@ func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo,
 			return err
 		}
 	}
-	// add static default route through the veth in the sandbox
+	// add static default route with the virtual link-local IP of the host (169.254.0.1)
+	// through the veth in the sandbox. The host does not have this IP, but it will
+	// respond anyway due to proxy-arp.
 	_, dip, _ := net.ParseCIDR("0.0.0.0/0")
-	if err := jinfo.AddStaticRoute(dip, types.CONNECTED, nil); err != nil {
+	hostGatewayIP, _ := netlink.ParseIPNet(defaultGw)
+	if err := jinfo.AddStaticRoute(dip, types.NEXTHOP, hostGatewayIP.IP); err != nil {
 		return fmt.Errorf("could not Add static route %v", err)
 	}
 
