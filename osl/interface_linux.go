@@ -13,6 +13,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
+
+	"golang.org/x/sys/unix"
 )
 
 // IfaceOption is a function option type to set interface options
@@ -411,7 +413,7 @@ func setInterfaceIPv6(nlh *netlink.Handle, iface netlink.Link, i *nwIface) error
 
 func setInterfaceLinkLocalIPs(nlh *netlink.Handle, iface netlink.Link, i *nwIface) error {
 	for _, llIP := range i.LinkLocalAddresses() {
-		ipAddr := &netlink.Addr{IPNet: llIP}
+		ipAddr := &netlink.Addr{IPNet: llIP, Scope: unix.RT_SCOPE_LINK}
 		if err := nlh.AddrAdd(iface, ipAddr); err != nil {
 			return err
 		}
