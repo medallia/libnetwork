@@ -254,6 +254,18 @@ func (d *driver) DeleteEndpoint(nid, eid string) error {
 	// already been deleted by sandbox delete.
 	link, err := netlink.LinkByName(endpoint.hostInterface)
 	if err == nil {
+		
+		// for each dest IP?
+		for _, addr := range endpoint.ipv4Addresses {
+			route := netlink.Route{link.Attrs().Index, Dst: addr.IPNet}
+			err = netlink.RouteDel(&route)
+			if err != nil {
+				logrus.Debugf("can't delete host route to %v", route)
+			} else {
+				logrus.Debugf("deleted host route %v", route)
+			}
+		}
+
 		logrus.Debugf("Deleting host interface %s", endpoint.hostInterface)
 		netlink.LinkDel(link)
 	} else {
