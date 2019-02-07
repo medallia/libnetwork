@@ -257,7 +257,7 @@ func (d *driver) DeleteEndpoint(nid, eid string) error {
 		
 		// for each dest IP?
 		for _, addr := range endpoint.ipv4Addresses {
-			route := netlink.Route{link.Attrs().Index, Dst: addr.IPNet}
+			route := netlink.Route{LinkIndex: link.Attrs().Index, Dst: addr.IPNet}
 			err = netlink.RouteDel(&route)
 			if err != nil {
 				logrus.Debugf("can't delete host route to %v", route)
