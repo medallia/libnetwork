@@ -3,6 +3,7 @@ package routed
 import (
 	"errors"
 	"fmt"
+	"golang.org/x/sys/unix"
 	"net"
 	"strings"
 	"sync"
@@ -144,6 +145,14 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 			netlink.LinkDel(hostIface)
 		}
 	}()
+
+	// configure link local ip in the host
+	_, dgip, _ := net.ParseCIDR(defaultGw)
+	addr := &netlink.Addr{IPNet: dgip, Scope: unix.RT_SCOPE_LINK, Label: ""}
+	err = netlink.AddrAdd(hostIface, addr)
+	if err != nil {
+		return err
+	}
 
 	sandboxIface, err := netlink.LinkByName(containerIfaceName)
 	if err != nil {
