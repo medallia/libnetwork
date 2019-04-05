@@ -7,13 +7,13 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/sirupsen/logrus"
 	"github.com/docker/libnetwork/datastore"
 	"github.com/docker/libnetwork/discoverapi"
 	"github.com/docker/libnetwork/driverapi"
 	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/netutils"
 	"github.com/docker/libnetwork/types"
+	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 )
 
@@ -22,8 +22,7 @@ const (
 	ifaceID     = 1
 	defaultMtu  = 9000
 	vethPrefix  = "vethr"
-	sandboxLinkLocalAddress = "169.254.0.2/30"
-	defaultGw               = "169.254.0.1/30"
+	defaultGw   = "169.254.1.1/32"
 )
 
 type routedNetwork struct {
@@ -208,13 +207,6 @@ func (d *driver) CreateEndpoint(nid, eid string, ifInfo driverapi.InterfaceInfo,
 		ips[i] = &ipv4Addresses[i]
 	}
 
-	localLinkIp, _ := netlink.ParseIPNet(sandboxLinkLocalAddress)
-
-	// Set the link-local IP Address
-	if err := ifInfo.SetLinkLocalIPAddress(localLinkIp); err != nil {
-		return fmt.Errorf("could not set link-local IP %s %v", localLinkIp, err)
-	}
-
 	// Set the primary IP Address
 	if err := ifInfo.SetIPAddress(ips[0]); err != nil {
 		return fmt.Errorf("could not set IP %s %v", ips[0], err)
@@ -287,7 +279,14 @@ func (d *driver) Join(nid, eid string, sboxKey string, jinfo driverapi.JoinInfo,
 			return err
 		}
 	}
-	// add static default route with the virtual link-local IP of the host (169.254.0.1)
+
+	// add link-local route via device to the default gateway
+	_, dgip, _ := net.ParseCIDR(defaultGw)
+	if err := jinfo.AddStaticRoute(dgip, types.CONNECTED, net.IP{}); err != nil {
+		return fmt.Errorf("could not Add connected route %v", err)
+	}
+
+	// add static default route with the virtual link-local IP of the host (169.254.1.1)
 	// through the veth in the sandbox. The host does not have this IP, but it will
 	// respond anyway due to proxy-arp.
 	_, dip, _ := net.ParseCIDR("0.0.0.0/0")
