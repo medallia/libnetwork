@@ -33,6 +33,12 @@ const (
 	//EnableIPv6 constant represents enabling IPV6 at network level
 	EnableIPv6 = Prefix + ".enable_ipv6"
 
+	// IPv4Addresses constant represent IPv4 Addresses of a Container
+	IPv4Addresses = "io.docker.network.endpoint.ip4addresses"
+
+	// IngressAllowed is a comma separated list of subnets which will be allowed to talk to the container.
+	IngressAllowed = "io.docker.network.endpoint.ingressAllowed"
+
 	// DriverMTU constant represents the MTU size for the network driver
 	DriverMTU = DriverPrefix + ".mtu"
 
