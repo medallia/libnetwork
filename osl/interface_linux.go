@@ -13,6 +13,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
+
+	"golang.org/x/sys/unix"
 )
 
 // IfaceOption is a function option type to set interface options
@@ -25,6 +27,7 @@ type nwIface struct {
 	dstMaster   string
 	mac         net.HardwareAddr
 	address     *net.IPNet
+	extraAddress []*net.IPNet
 	addressIPv6 *net.IPNet
 	llAddrs     []*net.IPNet
 	routes      []*net.IPNet
@@ -80,6 +83,18 @@ func (i *nwIface) Address() *net.IPNet {
 	defer i.Unlock()
 
 	return types.GetIPNetCopy(i.address)
+}
+
+func (i *nwIface) ExtraAddresses() []*net.IPNet {
+	i.Lock()
+	defer i.Unlock()
+
+	ea := make([]*net.IPNet, len(i.extraAddress))
+	for index, ip := range i.extraAddress {
+		r := types.GetIPNetCopy(ip)
+		ea[index] = r
+	}
+	return ea
 }
 
 func (i *nwIface) AddressIPv6() *net.IPNet {
@@ -326,6 +341,7 @@ func configureInterface(nlh *netlink.Handle, iface netlink.Link, i *nwIface) err
 		{setInterfaceName, fmt.Sprintf("error renaming interface %q to %q", ifaceName, i.DstName())},
 		{setInterfaceMAC, fmt.Sprintf("error setting interface %q MAC to %q", ifaceName, i.MacAddress())},
 		{setInterfaceIP, fmt.Sprintf("error setting interface %q IP to %v", ifaceName, i.Address())},
+		{setInterfaceExtraIP, fmt.Sprintf("error setting interface %q extra IP to %v", ifaceName, i.ExtraAddresses())},
 		{setInterfaceIPv6, fmt.Sprintf("error setting interface %q IPv6 to %v", ifaceName, i.AddressIPv6())},
 		{setInterfaceMaster, fmt.Sprintf("error setting interface %q master to %q", ifaceName, i.DstMaster())},
 		{setInterfaceLinkLocalIPs, fmt.Sprintf("error setting interface %q link local IPs to %v", ifaceName, i.LinkLocalAddresses())},
@@ -366,6 +382,21 @@ func setInterfaceIP(nlh *netlink.Handle, iface netlink.Link, i *nwIface) error {
 	return nlh.AddrAdd(iface, ipAddr)
 }
 
+func setInterfaceExtraIP(nlh *netlink.Handle, iface netlink.Link, i *nwIface) error {
+	if i.ExtraAddresses() == nil {
+		return nil
+	}
+	for _, ip := range i.ExtraAddresses() {
+		if ip != nil {
+			ipAddr := &netlink.Addr{IPNet: ip, Label: ""}
+			if err := nlh.AddrAdd(iface, ipAddr); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func setInterfaceIPv6(nlh *netlink.Handle, iface netlink.Link, i *nwIface) error {
 	if i.AddressIPv6() == nil {
 		return nil
@@ -382,7 +413,7 @@ func setInterfaceIPv6(nlh *netlink.Handle, iface netlink.Link, i *nwIface) error
 
 func setInterfaceLinkLocalIPs(nlh *netlink.Handle, iface netlink.Link, i *nwIface) error {
 	for _, llIP := range i.LinkLocalAddresses() {
-		ipAddr := &netlink.Addr{IPNet: llIP}
+		ipAddr := &netlink.Addr{IPNet: llIP, Scope: unix.RT_SCOPE_LINK}
 		if err := nlh.AddrAdd(iface, ipAddr); err != nil {
 			return err
 		}
